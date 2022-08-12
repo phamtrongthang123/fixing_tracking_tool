@@ -184,31 +184,79 @@ class Window(QWidget):
             texts.append(text) 
         # update
         new_cls = []
+        spread = []
+        # this list will have n-1 as the frame_id, and n-th is the target text 
+        ordr = {k:[[],[]] for k in range(1, self.max_person+1)}
         for i in range(0, self.grid.count(), 2):
             label, text = self.grid.itemAt(i).widget().text(), self.grid.itemAt(i+1).widget().text()
             label, text = int(label), int(text)
-            # update the sequence id 
+            # update the sequence id for max_person 
             if label > self.max_person and label != text:
                 for frame_id in self.inv_track[label]:
                     tmp = []
-                    for clsid in self.track_data[frame_id]['class_ids']:
+                    for clsid in self.track_data[str(frame_id)]['class_ids']:
                         if clsid == label: 
                             tmp.append(text)
                         else:
                             tmp.append(clsid)
-                    self.track_data[frame_id]['class_ids'] = tmp 
+                    self.track_data[str(frame_id)]['class_ids'] = tmp 
                 self.inv_track[text] += self.inv_track[label]
                 self.inv_track[text] = list(sorted(self.inv_track[text]))
                 del self.inv_track[label]
 
-                
+            # update sequence for consecutive
+            else:                
+                if label != text:
+                    # self.index already has the other lines taking care of
+                    for frame_id in range(self.index+1, self.max_length):
+                        count = 0
+                        # we don't want to trouble ourselves with different length 
+                        if str(frame_id) not in self.track_data: break
+                        if len(self.track_data[str(frame_id)]['class_ids']) != len(self.track_data[str(self.index)]['class_ids']): break
+                        for i,clsid in enumerate(self.track_data[str(frame_id)]['class_ids']):
+                            if clsid == label: 
+                                ordr[label][0].append(frame_id)
+                                ordr[label][1].append(i)
+                                count += 1
+                        if count == 0: break                         
+                    ordr[label][0].append(text)
             new_cls.append(text)
         self.track_data[str(self.index)]['class_ids'] = new_cls
+
+        # after the loop, we have this new ordr list to know what to change and the min index.
+        # We want to avoid update too much. 
+        # We may actually need try catch here, but let's stay with if for now
+        min_frameid = 99999
+        for k,v in ordr.items():
+            if len(v[0]) > 1:
+                min_frameid = min(min_frameid, v[0][-2])
+        # start updating
+        # print(min_frameid)
+        if min_frameid != 99999:
+            for frame_id in range(self.index+1, min_frameid+1):
+                tmp = self.track_data[str(frame_id)]['class_ids']
+                for k,v in ordr.items():
+                    if len(v[0]) > 1: 
+                        target = v[0][-1]
+                        idx = v[1][frame_id-self.index-1]
+                        tmp[idx] = target 
+                    
+                # if duplicate exists
+                if len(tmp) != len(set(tmp)):
+                    # print("break?")
+                    break 
+                self.track_data[str(frame_id)]['class_ids'] = tmp
+        
+        
+
         self.label_updated.setText(f'UPDATED AT FRAME {self.index}!')
         self.plot_qim()
         self.setFocus()
         # checkpoint before save new stuff
-        self.store_checkpoint()
+        if self.count_updating != 0:
+            self.store_checkpoint()
+        else:
+            self.count_updating += 1
         self.save_tracking()
 
     def store_checkpoint(self):
