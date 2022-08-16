@@ -100,10 +100,11 @@ class Window(QWidget):
 
     
         # max person 
-        if self.max_person == -1:
-            for k,v in results.items():
+        self.max_index = 0
+        for k,v in results.items():
+            if self.max_person == -1:
                 self.max_person = max(self.max_person, len(v['class_ids']))
-
+            self.max_index = max(self.max_index, max(v['class_ids']))
         return results, inv_results
 
     def save_tracking(self):
@@ -186,40 +187,40 @@ class Window(QWidget):
         new_cls = []
         spread = []
         # this list will have n-1 as the frame_id, and n-th is the target text 
-        ordr = {k:[[],[]] for k in range(1, self.max_person+1)}
+        ordr = {k:[[],[]] for k in range(1, self.max_index+1)}
         for i in range(0, self.grid.count(), 2):
             label, text = self.grid.itemAt(i).widget().text(), self.grid.itemAt(i+1).widget().text()
             label, text = int(label), int(text)
             # update the sequence id for max_person 
-            if label > self.max_person and label != text:
-                for frame_id in self.inv_track[label]:
-                    tmp = []
-                    for clsid in self.track_data[str(frame_id)]['class_ids']:
-                        if clsid == label: 
-                            tmp.append(text)
-                        else:
-                            tmp.append(clsid)
-                    self.track_data[str(frame_id)]['class_ids'] = tmp 
-                self.inv_track[text] += self.inv_track[label]
-                self.inv_track[text] = list(sorted(self.inv_track[text]))
-                del self.inv_track[label]
+            # if label > self.max_person and label != text:
+            #     for frame_id in self.inv_track[label]:
+            #         tmp = []
+            #         for clsid in self.track_data[str(frame_id)]['class_ids']:
+            #             if clsid == label: 
+            #                 tmp.append(text)
+            #             else:
+            #                 tmp.append(clsid)
+            #         self.track_data[str(frame_id)]['class_ids'] = tmp 
+            #     self.inv_track[text] += self.inv_track[label]
+            #     self.inv_track[text] = list(sorted(self.inv_track[text]))
+            #     del self.inv_track[label]
 
-            # update sequence for consecutive
-            else:                
-                if label != text:
-                    # self.index already has the other lines taking care of
-                    for frame_id in range(self.index+1, self.max_length):
-                        count = 0
-                        # we don't want to trouble ourselves with different length 
-                        if str(frame_id) not in self.track_data: break
-                        if len(self.track_data[str(frame_id)]['class_ids']) != len(self.track_data[str(self.index)]['class_ids']): break
-                        for i,clsid in enumerate(self.track_data[str(frame_id)]['class_ids']):
-                            if clsid == label: 
-                                ordr[label][0].append(frame_id)
-                                ordr[label][1].append(i)
-                                count += 1
-                        if count == 0: break                         
-                    ordr[label][0].append(text)
+            # # update sequence for consecutive
+            # else:                
+            if label != text:
+                # self.index already has the other lines taking care of
+                for frame_id in range(self.index+1, self.max_length):
+                    count = 0
+                    # we don't want to trouble ourselves with different length 
+                    if str(frame_id) not in self.track_data: break
+                    if len(self.track_data[str(frame_id)]['class_ids']) != len(self.track_data[str(self.index)]['class_ids']): break
+                    for i,clsid in enumerate(self.track_data[str(frame_id)]['class_ids']):
+                        if clsid == label: 
+                            ordr[label][0].append(frame_id)
+                            ordr[label][1].append(i)
+                            count += 1
+                    if count == 0: break                         
+                ordr[label][0].append(text)
             new_cls.append(text)
         self.track_data[str(self.index)]['class_ids'] = new_cls
 
